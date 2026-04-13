@@ -1,21 +1,70 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { gsap } from 'gsap';
 import {
   Building2, Calendar, DollarSign, Activity,
   Stethoscope, AlertCircle, ChevronRight, MoreVertical, BarChart2
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import api from '../services/api';
 
 export const DashboardScreen = () => {
   const comp = useRef(null);
+  const [stats, setStats] = useState(null);
+  const [appointments, setAppointments] = useState([]);
+  const [doctors, setDoctors] = useState([]);
+  const [deptLoad, setDeptLoad] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let ctx = gsap.context(() => {
-      gsap.from('.anim-card', { y: 20, opacity: 0, duration: 0.6, stagger: 0.1, ease: 'power2.out' });
-      gsap.from('tr', { y: 10, opacity: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out', delay: 0.4 });
-    }, comp);
-    return () => ctx.revert();
+    Promise.all([
+      api.dashboard.getStats(),
+      api.dashboard.getAppointmentsToday(),
+      api.dashboard.getDoctorsOnDuty(),
+      api.dashboard.getDepartmentLoad(),
+    ]).then(([statsData, apptData, docData, loadData]) => {
+      setStats(statsData);
+      setAppointments(apptData);
+      setDoctors(docData);
+      setDeptLoad(loadData);
+      setLoading(false);
+    });
   }, []);
+
+  useEffect(() => {
+    if (!loading) {
+      let ctx = gsap.context(() => {
+        gsap.from('.anim-card', { y: 20, opacity: 0, duration: 0.6, stagger: 0.1, ease: 'power2.out' });
+        gsap.from('tr', { y: 10, opacity: 0, duration: 0.4, stagger: 0.05, ease: 'power2.out', delay: 0.4 });
+      }, comp);
+      return () => ctx.revert();
+    }
+  }, [loading]);
+
+  if (loading || !stats) {
+    return (
+      <div className="pt-8 pb-12 w-full flex items-center justify-center min-h-[400px]">
+        <div className="text-sm font-bold text-outline uppercase tracking-widest animate-pulse">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  const statusDotColors = {
+    'Confirmed': 'bg-tertiary',
+    'Checked-in': 'bg-primary-fixed-dim',
+    'Scheduled': 'bg-slate-300',
+  };
+
+  const statusTextColors = {
+    'Confirmed': 'text-slate-600',
+    'Checked-in': 'text-slate-600',
+    'Scheduled': 'text-slate-400',
+  };
+
+  const deptBadgeStyles = {
+    'Cardiology': 'bg-cyan-50 text-cyan-700',
+    'Pediatrics': 'bg-amber-50 text-amber-700',
+    'Neurology': 'bg-purple-50 text-purple-700',
+  };
 
   return (
     <div ref={comp} className="pt-8 pb-12 w-full">
@@ -24,12 +73,12 @@ export const DashboardScreen = () => {
         <div className="anim-card col-span-1 md:col-span-2 bg-gradient-to-br from-primary to-primary-container p-6 rounded-[2rem] text-white flex flex-col justify-between h-48 relative overflow-hidden shadow-lg shadow-primary/20">
           <div className="z-10">
             <p className="text-sm font-medium opacity-80 uppercase tracking-widest font-sans">Total Patient Volume</p>
-            <h2 className="text-4xl font-extrabold mt-1 font-display text-white">128</h2>
-            <p className="text-xs mt-2 font-medium bg-white/20 inline-block px-3 py-1 rounded-full">+12% from yesterday</p>
+            <h2 className="text-4xl font-extrabold mt-1 font-display text-white">{stats.totalPatients}</h2>
+            <p className="text-xs mt-2 font-medium bg-white/20 inline-block px-3 py-1 rounded-full">{stats.patientGrowth} from yesterday</p>
           </div>
           <div className="z-10 flex gap-4 text-xs font-medium mt-4">
-            <span>84 New Admissions</span>
-            <span>44 Follow-ups</span>
+            <span>{stats.newAdmissions} New Admissions</span>
+            <span>{stats.followUps} Follow-ups</span>
           </div>
           {/* Decorative Abstract Element */}
           <div className="absolute -right-10 -bottom-10 w-48 h-48 bg-white/10 rounded-full blur-3xl"></div>
@@ -43,11 +92,11 @@ export const DashboardScreen = () => {
             <span className="text-[10px] font-bold text-tertiary uppercase tracking-tighter">On-Duty</span>
           </div>
           <div>
-            <p className="text-2xl font-bold text-slate-800 font-display">24 / 30</p>
+            <p className="text-2xl font-bold text-slate-800 font-display">{stats.cliniciansPresent} / {stats.cliniciansTotal}</p>
             <p className="text-xs text-slate-500 font-medium">Clinicians Present</p>
           </div>
           <div className="h-1 bg-slate-100 rounded-full overflow-hidden mt-2">
-            <div className="h-full bg-tertiary w-[80%] rounded-full"></div>
+            <div className="h-full bg-tertiary rounded-full" style={{ width: `${Math.round((stats.cliniciansPresent / stats.cliniciansTotal) * 100)}%` }}></div>
           </div>
         </div>
       </div>
@@ -77,77 +126,31 @@ export const DashboardScreen = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  <tr className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-semibold text-slate-700">09:30 AM</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">EL</div>
-                        <span className="text-sm font-medium text-slate-800">Eleanor Lewis</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-3 py-1 bg-cyan-50 text-cyan-700 text-[10px] font-bold rounded-md uppercase">Cardiology</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600">Dr. Sarah Vance</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="w-2 h-2 rounded-full bg-tertiary"></span>
-                        <span className="text-xs font-medium text-slate-600">Confirmed</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-semibold text-slate-700">10:15 AM</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">JH</div>
-                        <span className="text-sm font-medium text-slate-800">Julian Hayes</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-3 py-1 bg-amber-50 text-amber-700 text-[10px] font-bold rounded-md uppercase">Pediatrics</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600">Dr. Marc Aris</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="w-2 h-2 rounded-full bg-primary-fixed-dim"></span>
-                        <span className="text-xs font-medium text-slate-600">Checked-in</span>
-                      </div>
-                    </td>
-                  </tr>
-
-                  <tr className="hover:bg-slate-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <span className="text-sm font-semibold text-slate-700">11:00 AM</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">RM</div>
-                        <span className="text-sm font-medium text-slate-800">Rita Morales</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-3 py-1 bg-purple-50 text-purple-700 text-[10px] font-bold rounded-md uppercase">Neurology</span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-slate-600">Dr. Elena Kostic</span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-                        <span className="text-xs font-medium text-slate-400">Scheduled</span>
-                      </div>
-                    </td>
-                  </tr>
+                  {appointments.map((apt) => (
+                    <tr key={apt.id} className="hover:bg-slate-50 transition-colors group">
+                      <td className="px-6 py-4">
+                        <span className="text-sm font-semibold text-slate-700">{apt.time}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">{apt.initials}</div>
+                          <span className="text-sm font-medium text-slate-800">{apt.patient}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 ${deptBadgeStyles[apt.department] || 'bg-slate-50 text-slate-700'} text-[10px] font-bold rounded-md uppercase`}>{apt.department}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-sm text-slate-600">{apt.doctor}</span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <span className={`w-2 h-2 rounded-full ${statusDotColors[apt.status] || 'bg-slate-300'}`}></span>
+                          <span className={`text-xs font-medium ${statusTextColors[apt.status] || 'text-slate-400'}`}>{apt.status}</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -162,47 +165,23 @@ export const DashboardScreen = () => {
             <h3 className="text-lg font-semibold text-slate-800 px-2 font-display">Present Doctors</h3>
             <div className="bg-surface-container-lowest rounded-[2rem] p-4 space-y-4 shadow-sm border border-slate-100">
 
-              <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <img className="w-10 h-10 rounded-full object-cover" src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop" alt="Dr. David Miller" />
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-tertiary border-2 border-white rounded-full"></span>
+              {doctors.map((doc) => (
+                <div key={doc.id} className={`flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer ${doc.status === 'in-surgery' ? 'opacity-70' : ''}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <img className={`w-10 h-10 rounded-full object-cover ${doc.status === 'in-surgery' ? 'grayscale' : ''}`} src={doc.avatar} alt={doc.name} />
+                      <span className={`absolute bottom-0 right-0 w-3 h-3 ${doc.status === 'available' ? 'bg-tertiary' : 'bg-amber-400'} border-2 border-white rounded-full`}></span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-slate-800">{doc.name}</p>
+                      <p className="text-[10px] font-medium text-slate-500 uppercase tracking-tighter">
+                        {doc.department}{doc.status === 'in-surgery' ? ' • In Surgery' : ''}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">Dr. David Miller</p>
-                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-tighter">Orthopedics</p>
-                  </div>
+                  <MoreVertical className="w-5 h-5 text-slate-300" />
                 </div>
-                <MoreVertical className="w-5 h-5 text-slate-300" />
-              </div>
-
-              <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <img className="w-10 h-10 rounded-full object-cover" src="https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop" alt="Dr. Sarah Vance" />
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-tertiary border-2 border-white rounded-full"></span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">Dr. Sarah Vance</p>
-                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-tighter">Cardiology</p>
-                  </div>
-                </div>
-                <MoreVertical className="w-5 h-5 text-slate-300" />
-              </div>
-
-              <div className="flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer opacity-70">
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <img className="w-10 h-10 rounded-full object-cover grayscale" src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop" alt="Dr. Marc Aris" />
-                    <span className="absolute bottom-0 right-0 w-3 h-3 bg-amber-400 border-2 border-white rounded-full"></span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">Dr. Marc Aris</p>
-                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-tighter">Pediatrics • In Surgery</p>
-                  </div>
-                </div>
-                <MoreVertical className="w-5 h-5 text-slate-300" />
-              </div>
+              ))}
 
               <Link to="/dashboard/departments" className="w-full flex justify-center py-2 mt-2 text-xs font-bold text-primary hover:bg-primary/5 rounded-xl transition-colors uppercase tracking-widest text-center">
                 Full Staff Directory
@@ -211,49 +190,35 @@ export const DashboardScreen = () => {
           </div>
 
           {/* Department Snapshot Card */}
-          <div className="bg-primary/5 rounded-[2rem] p-6 relative overflow-hidden border border-primary/10 shadow-inner">
-            <h4 className="text-sm font-bold text-primary-container mb-4 flex items-center gap-2">
-              <BarChart2 className="w-5 h-5" /> Live Department Load
-            </h4>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                  <span>Emergency Room</span>
-                  <span>85% Capacity</span>
-                </div>
-                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-error w-[85%] rounded-full"></div>
-                </div>
+          {deptLoad && (
+            <div className="bg-primary/5 rounded-[2rem] p-6 relative overflow-hidden border border-primary/10 shadow-inner">
+              <h4 className="text-sm font-bold text-primary-container mb-4 flex items-center gap-2">
+                <BarChart2 className="w-5 h-5" /> Live Department Load
+              </h4>
+              <div className="space-y-4">
+                {deptLoad.departments.map((dept, i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="flex justify-between text-[10px] font-bold text-slate-600">
+                      <span>{dept.name}</span>
+                      <span>{dept.capacity}% Capacity</span>
+                    </div>
+                    <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div className={`h-full bg-${dept.color} rounded-full`} style={{ width: `${dept.capacity}%` }}></div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                  <span>Radiology</span>
-                  <span>40% Capacity</span>
-                </div>
-                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-tertiary w-[40%] rounded-full"></div>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex justify-between text-[10px] font-bold text-slate-600">
-                  <span>General Ward</span>
-                  <span>62% Capacity</span>
-                </div>
-                <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-primary w-[62%] rounded-full"></div>
-                </div>
-              </div>
-            </div>
 
-            <div className="mt-8 flex justify-center mb-2">
-              <div className="w-24 h-24 rounded-full border-4 border-primary/20 border-t-primary flex items-center justify-center relative">
-                <div className="text-center">
-                  <span className="block text-xl font-extrabold text-primary font-display">68%</span>
-                  <span className="text-[8px] font-bold text-slate-500 uppercase">Avg Occupancy</span>
+              <div className="mt-8 flex justify-center mb-2">
+                <div className="w-24 h-24 rounded-full border-4 border-primary/20 border-t-primary flex items-center justify-center relative">
+                  <div className="text-center">
+                    <span className="block text-xl font-extrabold text-primary font-display">{deptLoad.averageOccupancy}%</span>
+                    <span className="text-[8px] font-bold text-slate-500 uppercase">Avg Occupancy</span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
+          )}
 
         </div>
       </div>

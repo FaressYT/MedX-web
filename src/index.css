@@ -36,3 +36,16 @@
     @apply bg-gradient-to-br from-primary to-primary-container text-white;
   }
 }
+
+@keyframes growUp {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+    transform-origin: bottom;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+    transform-origin: bottom;
+  }
+}

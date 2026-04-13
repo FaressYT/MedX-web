@@ -9,7 +9,8 @@ import { AppointmentsScreen } from './pages/AppointmentsScreen';
 import { AddAppointmentScreen } from './pages/AddAppointmentScreen';
 import { RecordsScreen } from './pages/RecordsScreen';
 import { FinancialsScreen } from './pages/FinancialsScreen';
-import { DepartmentsScreen } from './pages/DepartmentsScreen';
+import { DepartmentsListScreen } from './pages/DepartmentsListScreen';
+import { DepartmentDetailScreen } from './pages/DepartmentsScreen';
 import { SettingsScreen } from './pages/SettingsScreen';
 
 // --- Protected Route Wrapper ---
@@ -32,7 +33,8 @@ export default function App() {
           <Route path="/dashboard/appointments/new" element={<ProtectedRoute><AddAppointmentScreen /></ProtectedRoute>} />
           <Route path="/dashboard/records" element={<ProtectedRoute><RecordsScreen /></ProtectedRoute>} />
           <Route path="/dashboard/financials" element={<ProtectedRoute><FinancialsScreen /></ProtectedRoute>} />
-          <Route path="/dashboard/departments" element={<ProtectedRoute><DepartmentsScreen /></ProtectedRoute>} />
+          <Route path="/dashboard/departments" element={<ProtectedRoute><DepartmentsListScreen /></ProtectedRoute>} />
+          <Route path="/dashboard/departments/:id" element={<ProtectedRoute><DepartmentDetailScreen /></ProtectedRoute>} />
           <Route path="/dashboard/settings" element={<ProtectedRoute><SettingsScreen /></ProtectedRoute>} />
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
