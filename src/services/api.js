@@ -1,3 +1,11 @@
+import {
+  createDateTimestamp,
+  createTimeTimestamp,
+  extractTimestampDate,
+  getFullName,
+  getNameInitials,
+} from './appointmentUtils';
+
 // ─────────────────────────────────────────────────────────────
 // Mock API service for MedX Core
 // Replace each method body with real fetch/axios calls when
@@ -6,6 +14,128 @@
 // ─────────────────────────────────────────────────────────────
 
 const delay = (ms = 800) => new Promise(resolve => setTimeout(resolve, ms));
+
+const toLocalDateValue = (dateObj) => {
+  const local = new Date(dateObj);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().slice(0, 10);
+};
+
+const getWeekStartDateValue = () => {
+  const start = new Date();
+  const mondayOffset = (start.getDay() + 6) % 7;
+  start.setDate(start.getDate() - mondayOffset);
+  start.setHours(0, 0, 0, 0);
+  return toLocalDateValue(start);
+};
+
+const shiftDateValue = (dateValue, days) => {
+  const date = new Date(`${dateValue}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return toLocalDateValue(date);
+};
+
+const appointmentDepartments = [
+  { id: 201, slug: 'cardiology', name: 'Cardiology Center' },
+  { id: 202, slug: 'neurology', name: 'Neurology Department' },
+  { id: 203, slug: 'pediatrics', name: 'Pediatrics Ward' },
+  { id: 204, slug: 'orthopedics', name: 'Orthopedics & Trauma' },
+  { id: 205, slug: 'radiology', name: 'Radiology & Imaging' },
+  { id: 206, slug: 'oncology', name: 'Oncology Institute' },
+];
+
+const appointmentDoctors = [
+  { id: 301, dep_id: 201, name: 'Dr. Sarah Vance', specialization: 'Cardiology', avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop', status: 'available' },
+  { id: 302, dep_id: 201, name: 'Dr. Julian Vane', specialization: 'Electrophysiology', avatar: 'https://images.unsplash.com/photo-1614436163996-25cee5f54290?w=100&h=100&fit=crop', status: 'available' },
+  { id: 303, dep_id: 202, name: 'Dr. Elena Kostic', specialization: 'Neuro-Oncology', avatar: 'https://images.unsplash.com/photo-1594824476967-48c8b964273f?w=100&h=100&fit=crop', status: 'available' },
+  { id: 304, dep_id: 202, name: 'Dr. Aman Patel', specialization: 'Epileptology', avatar: 'https://images.unsplash.com/photo-1622902046580-2b47f47f5471?w=100&h=100&fit=crop', status: 'available' },
+  { id: 305, dep_id: 203, name: 'Dr. Marc Aris', specialization: 'General Pediatrics', avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop', status: 'in-surgery' },
+  { id: 306, dep_id: 203, name: 'Dr. Laura Kim', specialization: 'Neonatology', avatar: 'https://images.unsplash.com/photo-1651008376811-b90baee60c1f?w=100&h=100&fit=crop', status: 'available' },
+  { id: 307, dep_id: 204, name: 'Dr. David Miller', specialization: 'Orthopedics', avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop', status: 'available' },
+  { id: 308, dep_id: 204, name: 'Dr. Nina Park', specialization: 'Sports Medicine', avatar: 'https://images.unsplash.com/photo-1582750433449-648ed127bb54?w=100&h=100&fit=crop', status: 'available' },
+  { id: 309, dep_id: 205, name: 'Dr. Thomas Hale', specialization: 'Diagnostic Radiology', avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=100&h=100&fit=crop', status: 'available' },
+  { id: 310, dep_id: 206, name: 'Dr. Grace Lim', specialization: 'Medical Oncology', avatar: 'https://images.unsplash.com/photo-1594824388853-d0c8d25f1d4f?w=100&h=100&fit=crop', status: 'available' },
+  { id: 311, dep_id: 206, name: 'Dr. Peter Osei', specialization: 'Radiation Oncology', avatar: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=100&h=100&fit=crop', status: 'available' },
+];
+
+const appointmentUsers = [
+  { id: 1001, first_name: 'Eleanor', last_name: 'Lewis', email: 'eleanor.lewis@medxcore.hospital', phone_number: '+963-944-1001', gender: 'female', birthdate: '1984-08-14T00:00:00', address: '15 Greenview Ave', id_passport: 'A1001', password: 'secret', created_at: '2026-01-05T09:10:00' },
+  { id: 1002, first_name: 'Julian', last_name: 'Hayes', email: 'julian.hayes@medxcore.hospital', phone_number: '+963-944-1002', gender: 'male', birthdate: '2017-02-05T00:00:00', address: '220 South Wing', id_passport: 'A1002', password: 'secret', created_at: '2026-01-10T10:30:00' },
+  { id: 1003, first_name: 'Mia', last_name: 'Stone', email: 'mia.stone@medxcore.hospital', phone_number: '+963-944-1003', gender: 'female', birthdate: '1991-11-02T00:00:00', address: '44 River Lane', id_passport: 'A1003', password: 'secret', created_at: '2026-01-12T11:40:00' },
+  { id: 1004, first_name: 'Rita', last_name: 'Morales', email: 'rita.morales@medxcore.hospital', phone_number: '+963-944-1004', gender: 'female', birthdate: '1988-04-28T00:00:00', address: '81 Cedar Block', id_passport: 'A1004', password: 'secret', created_at: '2026-01-14T08:45:00' },
+  { id: 1005, first_name: 'Carla', last_name: 'Nguyen', email: 'carla.nguyen@medxcore.hospital', phone_number: '+963-944-1005', gender: 'female', birthdate: '1990-06-16T00:00:00', address: '12 Maple Street', id_passport: 'A1005', password: 'secret', created_at: '2026-01-16T12:00:00' },
+  { id: 1006, first_name: 'Omar', last_name: 'Haddad', email: 'omar.haddad@medxcore.hospital', phone_number: '+963-944-1006', gender: 'male', birthdate: '1986-09-09T00:00:00', address: '77 North Walk', id_passport: 'A1006', password: 'secret', created_at: '2026-01-20T09:55:00' },
+  { id: 1007, first_name: 'Layla', last_name: 'Thomas', email: 'layla.thomas@medxcore.hospital', phone_number: '+963-944-1007', gender: 'female', birthdate: '2019-07-19T00:00:00', address: '32 East Garden', id_passport: 'A1007', password: 'secret', created_at: '2026-01-21T14:15:00' },
+  { id: 1008, first_name: 'Nora', last_name: 'Elsen', email: 'nora.elsen@medxcore.hospital', phone_number: '+963-944-1008', gender: 'female', birthdate: '1979-12-11T00:00:00', address: '9 Ocean Heights', id_passport: 'A1008', password: 'secret', created_at: '2026-01-25T16:20:00' },
+  { id: 1009, first_name: 'Adam', last_name: 'Perez', email: 'adam.perez@medxcore.hospital', phone_number: '+963-944-1009', gender: 'male', birthdate: '1994-03-22T00:00:00', address: '66 Pine Terrace', id_passport: 'A1009', password: 'secret', created_at: '2026-01-27T11:05:00' },
+];
+
+const patientMetaByUserId = {
+  1001: { status: 'Active', condition: 'Hypertension', doctor_id: 301 },
+  1002: { status: 'Pending', condition: 'Routine Pediatrics', doctor_id: 305 },
+  1003: { status: 'Active', condition: 'MRI Review', doctor_id: 309 },
+  1004: { status: 'Active', condition: 'Migraine Disorder', doctor_id: 303 },
+  1005: { status: 'Active', condition: 'Oncology Consultation', doctor_id: 310 },
+  1006: { status: 'Pending', condition: 'Post-Op Knee', doctor_id: 307 },
+  1007: { status: 'Active', condition: 'Pediatric Follow-up', doctor_id: 306 },
+  1008: { status: 'Active', condition: 'Cardiology Screening', doctor_id: 302 },
+  1009: { status: 'Pending', condition: 'Neurology Review', doctor_id: 304 },
+};
+
+const buildSeedAppointments = () => {
+  const weekStart = getWeekStartDateValue();
+
+  return [
+    { id: 5001, user_id: 1001, doctor_id: 301, dep_id: 201, date: createDateTimestamp(shiftDateValue(weekStart, 0)), time: createTimeTimestamp('09:30 AM'), is_asap: false, status: 'Confirmed', user_notes: 'Cardiac follow-up consultation.', doctor_notes: 'Review ECG and medication response.' },
+    { id: 5002, user_id: 1002, doctor_id: 305, dep_id: 203, date: createDateTimestamp(shiftDateValue(weekStart, 0)), time: createTimeTimestamp('10:15 AM'), is_asap: false, status: 'Checked-in', user_notes: 'Routine pediatric wellness visit.', doctor_notes: 'Vaccination record pending.' },
+    { id: 5003, user_id: 1003, doctor_id: 309, dep_id: 205, date: createDateTimestamp(shiftDateValue(weekStart, 1)), time: createTimeTimestamp('11:00 AM'), is_asap: false, status: 'Scheduled', user_notes: 'MRI scan review.', doctor_notes: '' },
+    { id: 5004, user_id: 1004, doctor_id: 303, dep_id: 202, date: createDateTimestamp(shiftDateValue(weekStart, 2)), time: createTimeTimestamp('01:00 PM'), is_asap: true, status: 'Scheduled', user_notes: 'Escalating migraine symptoms.', doctor_notes: 'Prioritize triage.' },
+    { id: 5005, user_id: 1005, doctor_id: 310, dep_id: 206, date: createDateTimestamp(shiftDateValue(weekStart, 3)), time: createTimeTimestamp('09:00 AM'), is_asap: false, status: 'Confirmed', user_notes: 'Initial oncology consult.', doctor_notes: 'Review referral packet.' },
+    { id: 5006, user_id: 1006, doctor_id: 307, dep_id: 204, date: createDateTimestamp(shiftDateValue(weekStart, 3)), time: createTimeTimestamp('02:30 PM'), is_asap: false, status: 'Checked-in', user_notes: 'Post-operative knee evaluation.', doctor_notes: 'Assess mobility and pain level.' },
+    { id: 5007, user_id: 1007, doctor_id: 306, dep_id: 203, date: createDateTimestamp(shiftDateValue(weekStart, 4)), time: createTimeTimestamp('11:30 AM'), is_asap: false, status: 'Scheduled', user_notes: 'Pediatric allergy follow-up.', doctor_notes: '' },
+    { id: 5008, user_id: 1008, doctor_id: 302, dep_id: 201, date: createDateTimestamp(shiftDateValue(weekStart, 5)), time: createTimeTimestamp('03:15 PM'), is_asap: false, status: 'Confirmed', user_notes: 'Preventive cardiology assessment.', doctor_notes: '' },
+    { id: 5009, user_id: 1009, doctor_id: 304, dep_id: 202, date: createDateTimestamp(shiftDateValue(weekStart, 6)), time: createTimeTimestamp('10:00 AM'), is_asap: false, status: 'Scheduled', user_notes: 'Neurology review and labs.', doctor_notes: '' },
+  ];
+};
+
+let appointmentsStore = buildSeedAppointments();
+
+const cloneRecord = (record) => ({ ...record });
+
+const getSortedAppointments = () => (
+  [...appointmentsStore].sort((left, right) => {
+    const dateCompare = left.date.localeCompare(right.date);
+    if (dateCompare !== 0) return dateCompare;
+    return left.time.localeCompare(right.time);
+  })
+);
+
+const getTodayAppointments = () => getSortedAppointments().filter(
+  (appointment) => extractTimestampDate(appointment.date) === toLocalDateValue(new Date())
+);
+
+const getNextAppointmentForUser = (userId) => getSortedAppointments().find(
+  (appointment) => appointment.user_id === userId && extractTimestampDate(appointment.date) >= toLocalDateValue(new Date())
+);
+
+const getDoctorById = (doctorId) => appointmentDoctors.find((doctor) => doctor.id === doctorId);
+
+const getPatientSummary = (user) => {
+  const metadata = patientMetaByUserId[user.id] || {};
+  const nextAppointment = getNextAppointmentForUser(user.id);
+  const doctor = getDoctorById(metadata.doctor_id || nextAppointment?.doctor_id);
+  const age = Math.max(0, new Date().getFullYear() - Number(String(user.birthdate).slice(0, 4)));
+
+  return {
+    id: user.id,
+    name: getFullName(user.first_name, user.last_name),
+    age,
+    status: metadata.status || 'Pending',
+    nextAppointment: nextAppointment?.date || null,
+    condition: metadata.condition || 'Awaiting Assessment',
+    doctor: doctor?.name || 'Unassigned',
+  };
+};
 
 const api = {
 
@@ -35,23 +165,21 @@ const api = {
     },
     getAppointmentsToday: async () => {
       await delay(300);
-      return [
-        { id: 'APT-1', time: '09:30 AM', patient: 'Eleanor Lewis', initials: 'EL', department: 'Cardiology', departmentColor: 'cyan', doctor: 'Dr. Sarah Vance', status: 'Confirmed', statusColor: 'tertiary' },
-        { id: 'APT-2', time: '10:15 AM', patient: 'Julian Hayes', initials: 'JH', department: 'Pediatrics', departmentColor: 'amber', doctor: 'Dr. Marc Aris', status: 'Checked-in', statusColor: 'primary-fixed-dim' },
-        { id: 'APT-3', time: '11:00 AM', patient: 'Rita Morales', initials: 'RM', department: 'Neurology', departmentColor: 'purple', doctor: 'Dr. Elena Kostic', status: 'Scheduled', statusColor: 'slate-300' },
-        { id: 'APT-4', time: '1:00 PM', patient: 'Rita Morales', initials: 'RM', department: 'Neurology', departmentColor: 'purple', doctor: 'Dr. Elena Kostic', status: 'Scheduled', statusColor: 'slate-300' },
-        { id: 'APT-5', time: '3:00 PM', patient: 'Rita Morales', initials: 'RM', department: 'Neurology', departmentColor: 'purple', doctor: 'Dr. Elena Kostic', status: 'Scheduled', statusColor: 'slate-300' },
-        { id: 'APT-6', time: '4:00 PM', patient: 'Rita Morales', initials: 'RM', department: 'Neurology', departmentColor: 'purple', doctor: 'Dr. Elena Kostic', status: 'Scheduled', statusColor: 'slate-300' },
-
-      ];
+      return getTodayAppointments().map(cloneRecord);
     },
     getDoctorsOnDuty: async () => {
       await delay(300);
-      return [
-        { id: 'doc-dm', name: 'Dr. David Miller', department: 'Orthopedics', status: 'available', avatar: 'https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=100&h=100&fit=crop' },
-        { id: 'doc-sv', name: 'Dr. Sarah Vance', department: 'Cardiology', status: 'available', avatar: 'https://images.unsplash.com/photo-1559839734-2b71ea197ec2?w=100&h=100&fit=crop' },
-        { id: 'doc-ma', name: 'Dr. Marc Aris', department: 'Pediatrics', status: 'in-surgery', avatar: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=100&h=100&fit=crop' },
-      ];
+      return [307, 301, 305].map((doctorId) => {
+        const doctor = getDoctorById(doctorId);
+        const department = appointmentDepartments.find((item) => item.id === doctor.dep_id);
+        return {
+          id: doctor.id,
+          name: doctor.name,
+          department: department?.name || 'Unknown',
+          status: doctor.status,
+          avatar: doctor.avatar,
+        };
+      });
     },
     getDepartmentLoad: async () => {
       await delay(300);
@@ -70,23 +198,50 @@ const api = {
   patients: {
     getAll: async () => {
       await delay(200);
-      return [
-        { id: 'PT-1001', name: 'Eleanor Vance', age: 42, status: 'Active', nextAppointment: '2026-04-12T09:00:00Z', condition: 'Hypertension', doctor: 'Dr. Smith' },
-        { id: 'PT-1002', name: 'Marcus Sterling', age: 28, status: 'Pending', nextAppointment: '2026-04-14T14:30:00Z', condition: 'Post-Op Knee', doctor: 'Dr. Jenkins' },
-      ];
+      return appointmentUsers.map((user) => getPatientSummary(user));
     },
     getById: async (id) => {
       await delay(200);
-      return { id, name: 'Eleanor Vance', age: 42, status: 'Active', bloodType: 'O+', history: ['Asthma', 'Appendectomy (2015)'] };
+      const user = appointmentUsers.find((item) => String(item.id) === String(id));
+      const summary = user ? getPatientSummary(user) : null;
+      return summary
+        ? { ...summary, bloodType: 'O+', history: ['Asthma', 'Appendectomy (2015)'] }
+        : null;
     },
     create: async (patientData) => {
       await delay(400);
       if (!patientData?.firstName || !patientData?.lastName || !patientData?.birthdate) {
         throw new Error('First name, last name, and birthdate are required.');
       }
+      const createdPatient = {
+        id: Date.now(),
+        first_name: patientData.firstName.trim(),
+        last_name: patientData.lastName.trim(),
+        email: patientData.email || '',
+        phone_number: patientData.phoneNumber || '',
+        gender: patientData.gender || '',
+        birthdate: createDateTimestamp(patientData.birthdate),
+        address: patientData.address || '',
+        id_passport: `AUTO-${Date.now()}`,
+        password: 'secret',
+        created_at: new Date().toISOString().slice(0, 19),
+      };
+
+      appointmentUsers.push(createdPatient);
+      patientMetaByUserId[createdPatient.id] = {
+        status: 'Pending',
+        condition: 'Awaiting Assessment',
+        doctor_id: null,
+      };
+
       return {
-        id: `PT-${Date.now()}`,
-        ...patientData,
+        id: createdPatient.id,
+        firstName: createdPatient.first_name,
+        lastName: createdPatient.last_name,
+        birthdate: patientData.birthdate,
+        address: createdPatient.address,
+        phoneNumber: createdPatient.phone_number,
+        gender: createdPatient.gender,
       };
     },
   },
@@ -238,51 +393,51 @@ const api = {
 
   // ── Appointments ─────────────────────────────────────────
   appointments: {
+    getContext: async () => {
+      await delay(200);
+      return {
+        users: appointmentUsers.map(cloneRecord),
+        doctors: appointmentDoctors.map(cloneRecord),
+        departments: appointmentDepartments.map(cloneRecord),
+      };
+    },
     getAll: async () => {
       await delay(300);
-      const toIsoDate = (dateObj) => {
-        const local = new Date(dateObj);
-        local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
-        return local.toISOString().slice(0, 10);
-      };
-
-      const today = new Date();
-      const mondayOffset = (today.getDay() + 6) % 7; // Monday=0
-      const weekStart = new Date(today);
-      weekStart.setDate(today.getDate() - mondayOffset);
-      weekStart.setHours(0, 0, 0, 0);
-
-      const makeDate = (dayIndex) => {
-        const date = new Date(weekStart);
-        date.setDate(weekStart.getDate() + dayIndex);
-        return toIsoDate(date);
-      };
-
-      const weeklyAppointments = [
-        { patient: 'Eleanor Lewis', type: 'Cardiology', time: '09:30 AM', doctor: 'Dr. Sarah Vance', status: 'Confirmed', dayIndex: 0 },
-        { patient: 'Julian Hayes', type: 'Pediatrics', time: '10:15 AM', doctor: 'Dr. Marc Aris', status: 'Checked-in', dayIndex: 0 },
-        { patient: 'Mia Stone', type: 'Radiology', time: '11:00 AM', doctor: 'Dr. Thomas Hale', status: 'Scheduled', dayIndex: 1 },
-        { patient: 'Rita Morales', type: 'Neurology', time: '01:00 PM', doctor: 'Dr. Elena Kostic', status: 'Scheduled', dayIndex: 2 },
-        { patient: 'Carla Nguyen', type: 'General', time: '09:00 AM', doctor: 'Dr. Sarah Jenkins', status: 'Confirmed', dayIndex: 3 },
-        { patient: 'Omar Haddad', type: 'Orthopedics', time: '02:30 PM', doctor: 'Dr. David Miller', status: 'Checked-in', dayIndex: 3 },
-        { patient: 'Layla Thomas', type: 'Pediatrics', time: '11:30 AM', doctor: 'Dr. Marc Aris', status: 'Scheduled', dayIndex: 4 },
-        { patient: 'Nora Elsen', type: 'Cardiology', time: '03:15 PM', doctor: 'Dr. Sarah Vance', status: 'Confirmed', dayIndex: 5 },
-        { patient: 'Adam Perez', type: 'Neurology', time: '10:00 AM', doctor: 'Dr. Elena Kostic', status: 'Scheduled', dayIndex: 6 },
-      ];
-
-      return weeklyAppointments.map((appointment, index) => ({
-        id: `APT-${index + 1}`,
-        patient: appointment.patient,
-        type: appointment.type,
-        time: appointment.time,
-        doctor: appointment.doctor,
-        status: appointment.status,
-        date: makeDate(appointment.dayIndex),
-      }));
+      return getSortedAppointments().map(cloneRecord);
     },
     create: async (appointmentData) => {
       await delay(500);
-      return { id: 'APT-' + Date.now(), ...appointmentData, status: 'Scheduled' };
+      if (
+        !appointmentData?.user_id
+        || !appointmentData?.doctor_id
+        || !appointmentData?.dep_id
+        || !appointmentData?.date
+        || !appointmentData?.time
+      ) {
+        throw new Error('user_id, doctor_id, dep_id, date, and time are required.');
+      }
+
+      const createdAppointment = {
+        id: Date.now(),
+        user_id: Number(appointmentData.user_id),
+        doctor_id: Number(appointmentData.doctor_id),
+        dep_id: Number(appointmentData.dep_id),
+        date: appointmentData.date,
+        time: appointmentData.time,
+        is_asap: Boolean(appointmentData.is_asap),
+        status: appointmentData.status || 'Scheduled',
+        user_notes: appointmentData.user_notes || '',
+        doctor_notes: appointmentData.doctor_notes || '',
+      };
+
+      appointmentsStore = [...appointmentsStore, createdAppointment];
+      patientMetaByUserId[createdAppointment.user_id] = {
+        ...(patientMetaByUserId[createdAppointment.user_id] || {}),
+        doctor_id: createdAppointment.doctor_id,
+        status: patientMetaByUserId[createdAppointment.user_id]?.status || 'Pending',
+      };
+
+      return cloneRecord(createdAppointment);
     },
     getAvailableSlots: async (date, departmentId) => {
       await delay(200);
@@ -295,34 +450,54 @@ const api = {
     },
     getDepartmentOptions: async () => {
       await delay(200);
-      return [
-        { id: 'cardiology', name: 'Cardiology Center' },
-        { id: 'neurology', name: 'Neurology Dept' },
-        { id: 'pediatrics', name: 'Pediatrics' },
-        { id: 'general', name: 'General Practice' },
-      ];
+      return appointmentDepartments.map((department) => ({
+        id: department.id,
+        slug: department.slug,
+        name: department.name,
+      }));
     },
     getPractitionerOptions: async (departmentId) => {
       await delay(200);
-      return [
-        { id: 'doc-sj', name: 'Dr. Sarah Jenkins' },
-        { id: 'doc-ma', name: 'Dr. Michael Aris' },
-        { id: 'doc-ko', name: "NP. Kevin O'Brien" },
-      ];
+      return appointmentDoctors
+        .filter((doctor) => Number(doctor.dep_id) === Number(departmentId))
+        .map((doctor) => ({
+          id: doctor.id,
+          name: doctor.name,
+          specialization: doctor.specialization,
+        }));
     },
     searchPatient: async (query) => {
       await delay(200);
+      const normalizedQuery = String(query || '').trim().toLowerCase();
+      if (!normalizedQuery) {
+        throw new Error('Enter a patient name or user ID.');
+      }
+
+      const matchedPatient = appointmentUsers.find((user) => {
+        const fullName = getFullName(user.first_name, user.last_name).toLowerCase();
+        return (
+          String(user.id).includes(normalizedQuery)
+          || fullName.includes(normalizedQuery)
+          || String(user.id_passport || '').toLowerCase().includes(normalizedQuery)
+        );
+      });
+
+      if (!matchedPatient) {
+        throw new Error('No patient matched that search.');
+      }
+
       return {
-        id: 'PX-88291',
-        name: 'Elena Rodriguez-Chen',
-        dob: '14 May 1985',
-        initials: 'E',
+        id: matchedPatient.id,
+        name: getFullName(matchedPatient.first_name, matchedPatient.last_name),
+        dob: String(matchedPatient.birthdate).slice(0, 10),
+        initials: getNameInitials(getFullName(matchedPatient.first_name, matchedPatient.last_name)),
         verified: true,
       };
     },
     getInsurance: async (patientId) => {
       await delay(200);
       return {
+        user_id: Number(patientId),
         carrier: 'BlueCross Shield PPO',
         policyNumber: '#9001-22-AX',
         coverageActive: true,
@@ -456,20 +631,11 @@ const api = {
   // TODO: migrate remaining consumers, then remove
   getPatients: async () => {
     await delay(300);
-    return [
-      { id: 'PT-1001', name: 'Eleanor Vance', age: 42, status: 'Active', condition: 'Hypertension', doctor: 'Dr. Smith' },
-      { id: 'PT-1002', name: 'Marcus Sterling', age: 28, status: 'Pending', condition: 'Post-Op Knee', doctor: 'Dr. Jenkins' },
-      { id: 'PT-1003', name: 'John Montague', age: 55, status: 'Discharged', condition: 'Routine Checkup', doctor: 'Dr. Smith' },
-      { id: 'PT-1004', name: 'Sarah Connor', age: 33, status: 'Active', condition: 'Prenatal Care', doctor: 'Dr. Lee' },
-    ];
+    return appointmentUsers.map((user) => getPatientSummary(user));
   },
   getAppointments: async () => {
     await delay(300);
-    return [
-      { id: 'APT-1', patient: 'Eleanor Lewis', type: 'Cardiology', time: '09:30 AM', doctor: 'Dr. Sarah Vance', status: 'Confirmed' },
-      { id: 'APT-2', patient: 'Julian Hayes', type: 'Pediatrics', time: '10:15 AM', doctor: 'Dr. Marc Aris', status: 'Checked-in' },
-      { id: 'APT-3', patient: 'Rita Morales', type: 'Neurology', time: '11:00 AM', doctor: 'Dr. Elena Kostic', status: 'Scheduled' },
-    ];
+    return getSortedAppointments().map(cloneRecord);
   },
   getRecords: async () => {
     await delay(300);

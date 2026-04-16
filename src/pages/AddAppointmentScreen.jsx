@@ -6,6 +6,9 @@ import {
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { createDateTimestamp, createTimeTimestamp } from '../services/appointmentUtils';
+
+const APPOINTMENT_STATUSES = ['Scheduled', 'Confirmed', 'Checked-in'];
 
 const getTodayLocalDate = () => {
   const now = new Date();
@@ -15,7 +18,8 @@ const getTodayLocalDate = () => {
 
 const formatBirthdateLabel = (isoDate) => {
   if (!isoDate) return '';
-  const date = new Date(`${isoDate}T00:00:00`);
+  const normalized = isoDate.includes('T') ? isoDate : `${isoDate}T00:00:00`;
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return isoDate;
   return new Intl.DateTimeFormat('en-GB', {
     day: '2-digit',
@@ -43,6 +47,17 @@ export const AddAppointmentScreen = () => {
   const [selectedSlot, setSelectedSlot] = useState(null);
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [searchResult, setSearchResult] = useState(null);
+  const [patientQuery, setPatientQuery] = useState('');
+  const [patientLookupLoading, setPatientLookupLoading] = useState(false);
+  const [patientLookupError, setPatientLookupError] = useState('');
+  const [submitError, setSubmitError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [appointmentForm, setAppointmentForm] = useState({
+    status: 'Scheduled',
+    isAsap: false,
+    userNotes: '',
+    doctorNotes: '',
+  });
   const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
   const [patientSubmitting, setPatientSubmitting] = useState(false);
   const [patientError, setPatientError] = useState('');
@@ -57,11 +72,9 @@ export const AddAppointmentScreen = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([
-      api.appointments.getDepartmentOptions(),
-    ]).then(([deptData]) => {
+    api.appointments.getDepartmentOptions().then((deptData) => {
       setDepartments(deptData);
-      setSelectedDepartment(deptData[0]?.id || '');
+      setSelectedDepartment(String(deptData[0]?.id || ''));
       setSearchResult(null);
       setLoading(false);
     });
@@ -78,7 +91,7 @@ export const AddAppointmentScreen = () => {
     api.appointments.getPractitionerOptions(selectedDepartment).then((practData) => {
       if (!mounted) return;
       setPractitioners(practData);
-      setSelectedPractitioner(practData[0]?.id || '');
+      setSelectedPractitioner(String(practData[0]?.id || ''));
     });
 
     return () => {
@@ -114,11 +127,12 @@ export const AddAppointmentScreen = () => {
 
   useEffect(() => {
     if (!loading) {
-      let ctx = gsap.context(() => {
+      const ctx = gsap.context(() => {
         gsap.from('.anim-card', { y: 20, opacity: 0, duration: 0.5, stagger: 0.1, ease: 'power2.out' });
       }, comp);
       return () => ctx.revert();
     }
+    return undefined;
   }, [loading]);
 
   const openPatientModal = () => {
@@ -133,6 +147,29 @@ export const AddAppointmentScreen = () => {
 
   const handlePatientFieldChange = (field, value) => {
     setPatientForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleAppointmentFieldChange = (field, value) => {
+    setAppointmentForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSearchPatient = async () => {
+    setPatientLookupError('');
+    setSubmitError('');
+    setPatientLookupLoading(true);
+
+    try {
+      const result = await api.appointments.searchPatient(patientQuery);
+      setSearchResult({
+        ...result,
+        dob: formatBirthdateLabel(result.dob),
+      });
+    } catch (error) {
+      setSearchResult(null);
+      setPatientLookupError(error?.message || 'Failed to find patient.');
+    } finally {
+      setPatientLookupLoading(false);
+    }
   };
 
   const handleCreatePatientProfile = async (e) => {
@@ -150,6 +187,7 @@ export const AddAppointmentScreen = () => {
         initials: getInitials(createdPatient.firstName, createdPatient.lastName),
         verified: true,
       });
+      setPatientQuery(fullName);
       setPatientForm({
         firstName: '',
         lastName: '',
@@ -166,6 +204,41 @@ export const AddAppointmentScreen = () => {
     }
   };
 
+  const handleCreateAppointment = async () => {
+    setSubmitError('');
+
+    if (!searchResult?.id) {
+      setSubmitError('Select a patient so the appointment can store user_id.');
+      return;
+    }
+
+    if (!selectedDepartment || !selectedPractitioner || !selectedDate || !selectedSlot) {
+      setSubmitError('Department, doctor, date, and time are required.');
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      await api.appointments.create({
+        user_id: Number(searchResult.id),
+        doctor_id: Number(selectedPractitioner),
+        dep_id: Number(selectedDepartment),
+        date: createDateTimestamp(selectedDate),
+        time: createTimeTimestamp(selectedSlot),
+        is_asap: appointmentForm.isAsap,
+        status: appointmentForm.status,
+        user_notes: appointmentForm.userNotes.trim(),
+        doctor_notes: appointmentForm.doctorNotes.trim(),
+      });
+      navigate('/dashboard/appointments');
+    } catch (error) {
+      setSubmitError(error?.message || 'Failed to create appointment record.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="pt-8 pb-12 w-full flex items-center justify-center min-h-[400px]">
@@ -176,30 +249,23 @@ export const AddAppointmentScreen = () => {
 
   return (
     <div ref={comp} className="pt-8 pb-12 w-full max-w-5xl mx-auto">
-      {/* Breadcrumbs / Header */}
       <div className="mb-8 anim-card">
         <div className="flex items-center gap-2 text-sm text-outline mb-2">
           <Link to="/dashboard/appointments" className="hover:text-primary transition-colors">Appointments</Link>
           <ChevronRight className="w-3.5 h-3.5" />
-          <span className="text-primary font-medium tracking-wide">Schedule New Encounter</span>
+          <span className="text-primary font-medium tracking-wide">Add New Appointment</span>
         </div>
         <h2 className="text-3xl font-bold font-display text-on-surface tracking-tight">Add New Appointment</h2>
-        <p className="text-on-surface-variant mt-1 font-medium">Configure clinical details for the upcoming visit.</p>
       </div>
 
-      {/* Form Layout: Asymmetric Bento Grid */}
       <div className="grid grid-cols-12 gap-6">
-
-        {/* Left Column: Patient & Department (Col-Span 8) */}
         <div className="col-span-12 lg:col-span-8 space-y-6">
-
-          {/* Patient Search & Info Card */}
           <section className="bg-surface-container-lowest p-8 rounded-[2rem] border border-slate-100 shadow-sm anim-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-primary">
                 <Search className="w-5 h-5" />
               </div>
-              <h3 className="text-xl font-bold font-display">Patient Information</h3>
+              <h3 className="text-xl font-bold font-display">Patient Reference</h3>
             </div>
 
             <div className="space-y-6">
@@ -208,8 +274,28 @@ export const AddAppointmentScreen = () => {
                 <div className="flex gap-4">
                   <div className="relative flex-1">
                     <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-outline" />
-                    <input className="w-full bg-surface-container-low border-none rounded-xl py-3 pl-12 pr-4 transition-all focus:ring-2 focus:ring-primary/20 outline-none text-sm placeholder:text-outline" placeholder="Enter name, ID, or SSN..." type="text" />
+                    <input
+                      className="w-full bg-surface-container-low border-none rounded-xl py-3 pl-12 pr-4 transition-all focus:ring-2 focus:ring-primary/20 outline-none text-sm placeholder:text-outline"
+                      placeholder="Enter patient name, user ID, or passport..."
+                      type="text"
+                      value={patientQuery}
+                      onChange={(e) => setPatientQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchPatient();
+                        }
+                      }}
+                    />
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleSearchPatient}
+                    className="px-6 py-3 bg-primary text-white font-semibold rounded-xl hover:opacity-90 transition-opacity text-sm disabled:opacity-60"
+                    disabled={patientLookupLoading}
+                  >
+                    {patientLookupLoading ? 'Searching...' : 'Search'}
+                  </button>
                   <button
                     type="button"
                     onClick={openPatientModal}
@@ -220,7 +306,10 @@ export const AddAppointmentScreen = () => {
                 </div>
               </div>
 
-              {/* Selected Patient */}
+              {patientLookupError && (
+                <p className="text-sm font-semibold text-error">{patientLookupError}</p>
+              )}
+
               {searchResult && (
                 <div className="bg-surface p-4 rounded-2xl flex items-center gap-4 border border-outline-variant/10">
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-lg">
@@ -228,7 +317,7 @@ export const AddAppointmentScreen = () => {
                   </div>
                   <div>
                     <p className="font-bold text-on-surface">{searchResult.name}</p>
-                    <p className="text-xs text-on-surface-variant font-medium mt-0.5 font-sans">ID: #{searchResult.id} • DOB: {searchResult.dob}</p>
+                    <p className="text-xs text-on-surface-variant font-medium mt-0.5 font-sans">user_id: #{searchResult.id} • DOB: {searchResult.dob}</p>
                   </div>
                   {searchResult.verified && (
                     <div className="ml-auto px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant text-[10px] uppercase tracking-widest font-bold rounded-full border border-tertiary-fixed/50">
@@ -240,16 +329,15 @@ export const AddAppointmentScreen = () => {
             </div>
           </section>
 
-          {/* Clinical Assignment Card */}
           <section className="bg-surface-container-lowest p-8 rounded-[2rem] border border-slate-100 shadow-sm anim-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-secondary-fixed flex items-center justify-center text-secondary">
                 <Stethoscope className="w-5 h-5" />
               </div>
-              <h3 className="text-xl font-bold font-display">Clinical Assignment</h3>
+              <h3 className="text-xl font-bold font-display">Appointment Relations</h3>
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div>
                 <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Department</label>
                 <select
@@ -257,37 +345,54 @@ export const AddAppointmentScreen = () => {
                   onChange={(e) => setSelectedDepartment(e.target.value)}
                   className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium text-slate-700 cursor-pointer transition-all"
                 >
-                  {departments.map(dept => (
+                  {departments.map((dept) => (
                     <option key={dept.id} value={dept.id}>{dept.name}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Practitioner</label>
+                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Doctor</label>
                 <select
                   value={selectedPractitioner}
                   onChange={(e) => setSelectedPractitioner(e.target.value)}
                   className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium text-slate-700 cursor-pointer transition-all"
                   disabled={practitioners.length === 0}
                 >
-                  {practitioners.map(prac => (
-                    <option key={prac.id} value={prac.id}>{prac.name}</option>
+                  {practitioners.map((practitioner) => (
+                    <option key={practitioner.id} value={practitioner.id}>{practitioner.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Status</label>
+                <select
+                  value={appointmentForm.status}
+                  onChange={(e) => handleAppointmentFieldChange('status', e.target.value)}
+                  className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium text-slate-700 cursor-pointer transition-all"
+                >
+                  {APPOINTMENT_STATUSES.map((status) => (
+                    <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
               </div>
             </div>
 
-            <div className="mt-6">
-              <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Reason for Visit</label>
-              <textarea className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium text-slate-700 resize-none transition-all placeholder:text-outline/70" placeholder="Symptoms, referral details, or follow-up notes..." rows="3"></textarea>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-6 mt-6">
+              <div>
+                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Notes</label>
+                <textarea
+                  className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 outline-none focus:ring-2 focus:ring-primary/20 text-sm font-medium text-slate-700 resize-none transition-all placeholder:text-outline/70 min-h-28"
+                  placeholder="Symptoms, referral details, or patient notes..."
+                  rows="4"
+                  value={appointmentForm.userNotes}
+                  onChange={(e) => handleAppointmentFieldChange('userNotes', e.target.value)}
+                />
+              </div>
             </div>
           </section>
         </div>
 
-        {/* Right Column: Scheduling (Col-Span 4) */}
         <div className="col-span-12 lg:col-span-4 space-y-6">
-
-          {/* Date & Time Card */}
           <section className="bg-surface-container-lowest p-8 rounded-[2rem] border border-slate-100 shadow-sm anim-card">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-10 h-10 rounded-xl bg-primary-fixed flex items-center justify-center text-primary">
@@ -298,19 +403,17 @@ export const AddAppointmentScreen = () => {
 
             <div className="space-y-6">
               <div>
-                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Consultation Date</label>
-                <div className="relative">
-                  <input
-                    className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium text-slate-700"
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                  />
-                </div>
+                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">date</label>
+                <input
+                  className="w-full bg-surface-container-low border-none rounded-xl py-3 px-4 focus:ring-2 focus:ring-primary/20 outline-none text-sm font-medium text-slate-700"
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">Available Slots</label>
+                <label className="block text-xs font-bold text-outline-variant uppercase tracking-widest mb-2">time</label>
                 <div className="max-h-56 overflow-y-auto pr-1">
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {slotsLoading && (
@@ -330,8 +433,8 @@ export const AddAppointmentScreen = () => {
                         key={slot}
                         onClick={() => setSelectedSlot(slot)}
                         className={`py-2.5 text-sm font-semibold rounded-xl transition-colors ${selectedSlot === slot
-                            ? 'bg-gradient-to-br from-primary to-primary-container text-white font-bold shadow-md'
-                            : 'text-slate-600 border border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5'
+                          ? 'bg-gradient-to-br from-primary to-primary-container text-white font-bold shadow-md'
+                          : 'text-slate-600 border border-outline-variant/30 hover:border-primary/50 hover:bg-primary/5'
                           }`}
                       >
                         {slot}
@@ -342,23 +445,27 @@ export const AddAppointmentScreen = () => {
               </div>
             </div>
           </section>
-
         </div>
 
-        {/* Footer Action Bar */}
-        <div className="col-span-12 mt-2 flex items-center justify-end gap-3 p-6 bg-surface-container-lowest rounded-[2rem] border border-slate-100 shadow-sm anim-card">
-          <button
-            onClick={() => navigate('/dashboard/appointments')}
-            className="px-6 py-2.5 text-on-surface-variant font-bold hover:bg-surface-container-low transition-colors rounded-xl text-sm"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => navigate('/dashboard/appointments')}
-            className="px-8 py-2.5 bg-gradient-to-br from-primary to-primary-container text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transform transition-transform active:scale-95 flex items-center gap-2 text-sm"
-          >
-            <Calendar className="w-4 h-4" /> Confirm Appointment
-          </button>
+        <div className="col-span-12 mt-2 p-6 bg-surface-container-lowest rounded-[2rem] border border-slate-100 shadow-sm anim-card space-y-4">
+          {submitError && (
+            <p className="text-sm font-semibold text-error">{submitError}</p>
+          )}
+          <div className="flex items-center justify-end gap-3">
+            <button
+              onClick={() => navigate('/dashboard/appointments')}
+              className="px-6 py-2.5 text-on-surface-variant font-bold hover:bg-surface-container-low transition-colors rounded-xl text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreateAppointment}
+              className="px-8 py-2.5 bg-gradient-to-br from-primary to-primary-container text-white font-bold rounded-xl shadow-lg shadow-primary/20 hover:opacity-90 transform transition-transform active:scale-95 flex items-center gap-2 text-sm disabled:opacity-60"
+              disabled={submitting}
+            >
+              <Calendar className="w-4 h-4" /> {submitting ? 'Saving...' : 'Create Appointment Record'}
+            </button>
+          </div>
         </div>
 
       </div>
@@ -376,7 +483,7 @@ export const AddAppointmentScreen = () => {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-2xl font-bold font-display text-on-surface">Add Patient Profile</h3>
-                <p className="text-sm text-on-surface-variant mt-1">Create a new patient profile to use in this appointment.</p>
+                <p className="text-sm text-on-surface-variant mt-1">Create a user record that can be referenced as appointment.user_id.</p>
               </div>
               <button
                 type="button"

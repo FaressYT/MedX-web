@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useLayoutEffect, useState } from 'react';
 import { gsap } from 'gsap';
 import { Star, ChevronRight, Users, Activity, Building2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -26,31 +26,31 @@ export const DepartmentsListScreen = () => {
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (loading || departments.length === 0 || !comp.current) return undefined;
 
     const ctx = gsap.context((self) => {
       const cards = self.selector('.dept-card');
       if (!cards.length) return;
 
-      gsap.killTweensOf(cards);
-      gsap.fromTo(
+      gsap.set(cards, { y: 24, autoAlpha: 0 });
+
+      gsap.to(
         cards,
-        { y: 24, autoAlpha: 0 },
         {
           y: 0,
           autoAlpha: 1,
           duration: 0.5,
           stagger: 0.08,
           ease: 'power2.out',
-          clearProps: 'transform,opacity,visibility',
           overwrite: 'auto',
+          clearProps: 'transform,opacity,visibility',
         }
       );
     }, comp);
 
     return () => ctx.revert();
-  }, [loading, departments.length]);
+  }, [loading, departments]);
 
   const colorMap = {
     primary: { bg: 'bg-primary/10', text: 'text-primary', bar: 'bg-primary' },
@@ -103,6 +103,7 @@ export const DepartmentsListScreen = () => {
                 key={dept.id}
                 to={`/dashboard/departments/${dept.id}`}
                 className="dept-card group bg-surface-container-lowest rounded-[2rem] p-6 border border-slate-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 cursor-pointer block"
+                style={{ opacity: 0, visibility: 'hidden' }}
               >
                 {/* Card Header */}
                 <div className="flex items-start justify-between mb-5">

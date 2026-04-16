@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { gsap } from 'gsap';
 import {
   Building2, Calendar, DollarSign, Activity,
@@ -6,24 +6,34 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import { buildIdMap, formatTimestampTime, getAppointmentDisplay } from '../services/appointmentUtils';
 
 export const DashboardScreen = () => {
   const comp = useRef(null);
   const [stats, setStats] = useState(null);
   const [appointments, setAppointments] = useState([]);
+  const [appointmentContext, setAppointmentContext] = useState({ users: [], doctors: [], departments: [] });
   const [doctors, setDoctors] = useState([]);
   const [deptLoad, setDeptLoad] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const appointmentLookups = useMemo(() => ({
+    usersById: buildIdMap(appointmentContext.users),
+    doctorsById: buildIdMap(appointmentContext.doctors),
+    departmentsById: buildIdMap(appointmentContext.departments),
+  }), [appointmentContext]);
 
   useEffect(() => {
     Promise.all([
       api.dashboard.getStats(),
       api.dashboard.getAppointmentsToday(),
+      api.appointments.getContext(),
       api.dashboard.getDoctorsOnDuty(),
       api.dashboard.getDepartmentLoad(),
-    ]).then(([statsData, apptData, docData, loadData]) => {
+    ]).then(([statsData, apptData, contextData, docData, loadData]) => {
       setStats(statsData);
       setAppointments(apptData);
+      setAppointmentContext(contextData);
       setDoctors(docData);
       setDeptLoad(loadData);
       setLoading(false);
@@ -61,9 +71,12 @@ export const DashboardScreen = () => {
   };
 
   const deptBadgeStyles = {
-    'Cardiology': 'bg-cyan-50 text-cyan-700',
-    'Pediatrics': 'bg-amber-50 text-amber-700',
-    'Neurology': 'bg-purple-50 text-purple-700',
+    'Cardiology Center': 'bg-cyan-50 text-cyan-700',
+    'Pediatrics Ward': 'bg-amber-50 text-amber-700',
+    'Neurology Department': 'bg-purple-50 text-purple-700',
+    'Orthopedics & Trauma': 'bg-emerald-50 text-emerald-700',
+    'Radiology & Imaging': 'bg-slate-100 text-slate-700',
+    'Oncology Institute': 'bg-rose-50 text-rose-700',
   };
 
   return (
@@ -126,22 +139,27 @@ export const DashboardScreen = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {appointments.map((apt) => (
+                  {appointments.map((apt) => {
+                    const display = getAppointmentDisplay(apt, appointmentLookups);
+                    return (
                     <tr key={apt.id} className="hover:bg-slate-50 transition-colors group">
                       <td className="px-6 py-4">
-                        <span className="text-sm font-semibold text-slate-700">{apt.time}</span>
+                        <span className="text-sm font-semibold text-slate-700">{formatTimestampTime(apt.time)}</span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">{apt.initials}</div>
-                          <span className="text-sm font-medium text-slate-800">{apt.patient}</span>
+                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">{display.patientInitials}</div>
+                          <div>
+                            <span className="text-sm font-medium text-slate-800 block">{display.patientName}</span>
+                            {apt.is_asap && <span className="text-[10px] font-bold uppercase tracking-widest text-error">ASAP</span>}
+                          </div>
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-3 py-1 ${deptBadgeStyles[apt.department] || 'bg-slate-50 text-slate-700'} text-[10px] font-bold rounded-md uppercase`}>{apt.department}</span>
+                        <span className={`px-3 py-1 ${deptBadgeStyles[display.departmentName] || 'bg-slate-50 text-slate-700'} text-[10px] font-bold rounded-md uppercase`}>{display.departmentName}</span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="text-sm text-slate-600">{apt.doctor}</span>
+                        <span className="text-sm text-slate-600">{display.doctorName}</span>
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-2">
@@ -150,7 +168,8 @@ export const DashboardScreen = () => {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

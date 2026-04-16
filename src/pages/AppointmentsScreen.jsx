@@ -3,6 +3,13 @@ import { gsap } from 'gsap';
 import { CalendarIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../services/api';
+import {
+  buildIdMap,
+  extractTimestampDate,
+  formatTimestampTime,
+  getAppointmentDisplay,
+  parseTimestampTimeToMinutes,
+} from '../services/appointmentUtils';
 
 const DAY_START_MINUTES = 8 * 60;
 const DAY_END_MINUTES = 18 * 60;
@@ -17,22 +24,10 @@ const toIsoDate = (dateObj) => {
 
 const getWeekStart = (dateObj) => {
   const start = new Date(dateObj);
-  const mondayOffset = (start.getDay() + 6) % 7; // Monday=0
+  const mondayOffset = (start.getDay() + 6) % 7;
   start.setDate(start.getDate() - mondayOffset);
   start.setHours(0, 0, 0, 0);
   return start;
-};
-
-const parseTimeToMinutes = (timeLabel) => {
-  const match = String(timeLabel || '').match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
-  if (!match) return Number.NaN;
-
-  let hours = Number(match[1]) % 12;
-  const minutes = Number(match[2]);
-  const meridiem = match[3].toUpperCase();
-  if (meridiem === 'PM') hours += 12;
-
-  return (hours * 60) + minutes;
 };
 
 const formatMinutesLabel = (totalMinutes) => {
@@ -42,7 +37,13 @@ const formatMinutesLabel = (totalMinutes) => {
   return `${hours}:00 ${period}`;
 };
 
-export const WeeklyCalendar = ({ appointments, loading }) => {
+const buildLookups = (context) => ({
+  usersById: buildIdMap(context?.users || []),
+  doctorsById: buildIdMap(context?.doctors || []),
+  departmentsById: buildIdMap(context?.departments || []),
+});
+
+export const WeeklyCalendar = ({ appointments, loading, lookups }) => {
   const comp = useRef(null);
 
   const todayIso = toIsoDate(new Date());
@@ -72,12 +73,13 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
   const appointmentsByDate = useMemo(() => {
     const grouped = Object.fromEntries(weekDays.map((day) => [day.iso, []]));
     appointments.forEach((appointment) => {
-      if (grouped[appointment.date]) {
-        grouped[appointment.date].push(appointment);
+      const dateValue = extractTimestampDate(appointment.date);
+      if (grouped[dateValue]) {
+        grouped[dateValue].push(appointment);
       }
     });
     Object.values(grouped).forEach((dayAppointments) => {
-      dayAppointments.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+      dayAppointments.sort((a, b) => parseTimestampTimeToMinutes(a.time) - parseTimestampTimeToMinutes(b.time));
     });
     return grouped;
   }, [appointments, weekDays]);
@@ -90,6 +92,7 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
       }, comp);
       return () => ctx.revert();
     }
+    return undefined;
   }, [loading, appointments]);
 
   if (loading) {
@@ -101,17 +104,16 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
   }
 
   const statusEventStyles = {
-    Confirmed: { wrap: 'bg-emerald-50 hover:bg-emerald-100/80 ring-emerald-500/30 text-emerald-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-emerald-500', time: 'text-emerald-700', name: 'text-emerald-900', meta: 'text-emerald-700/80' },
-    'Checked-in': { wrap: 'bg-sky-50 hover:bg-sky-100/80 ring-sky-500/30 text-sky-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-sky-500', time: 'text-sky-700', name: 'text-sky-900', meta: 'text-sky-700/80' },
-    Scheduled: { wrap: 'bg-amber-50 hover:bg-amber-100/80 ring-amber-500/30 text-amber-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-amber-500', time: 'text-amber-700', name: 'text-amber-900', meta: 'text-amber-700/80' },
+    Confirmed: { wrap: 'bg-emerald-50 hover:bg-emerald-100/80 ring-emerald-500/30 text-emerald-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-emerald-500', name: 'text-emerald-900', meta: 'text-emerald-700/80' },
+    'Checked-in': { wrap: 'bg-sky-50 hover:bg-sky-100/80 ring-sky-500/30 text-sky-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-sky-500', name: 'text-sky-900', meta: 'text-sky-700/80' },
+    Scheduled: { wrap: 'bg-amber-50 hover:bg-amber-100/80 ring-amber-500/30 text-amber-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-amber-500', name: 'text-amber-900', meta: 'text-amber-700/80' },
   };
-  const fallbackStyle = { wrap: 'bg-slate-50 hover:bg-slate-100/80 ring-slate-500/30 text-slate-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-slate-400', time: 'text-slate-700', name: 'text-slate-900', meta: 'text-slate-700/80' };
+  const fallbackStyle = { wrap: 'bg-slate-50 hover:bg-slate-100/80 ring-slate-500/30 text-slate-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-slate-400', name: 'text-slate-900', meta: 'text-slate-700/80' };
 
   return (
     <div ref={comp} className="bg-surface border border-slate-100/80 shadow-sm rounded-3xl overflow-hidden ring-1 ring-slate-900/5">
       <div className="w-full">
         <div className="w-full">
-          {/* Header */}
           <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] md:grid-cols-[70px_repeat(7,minmax(0,1fr))] border-b border-slate-100/80 bg-surface/80 backdrop-blur-xl sticky top-0 z-30">
             <div className="flex items-end justify-center pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-r border-slate-100/50">Time</div>
             {weekDays.map((day) => {
@@ -133,7 +135,6 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
             })}
           </div>
 
-          {/* Grid */}
           <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] md:grid-cols-[70px_repeat(7,minmax(0,1fr))]">
             <div className="relative border-r border-slate-100/50 bg-slate-50/30">
               <div style={{ height: totalCalendarHeight }}>
@@ -176,9 +177,10 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
                   })}
 
                   {dayAppointments.map((appointment) => {
-                    const startMinutes = parseTimeToMinutes(appointment.time);
+                    const startMinutes = parseTimestampTimeToMinutes(appointment.time);
                     if (Number.isNaN(startMinutes)) return null;
 
+                    const display = getAppointmentDisplay(appointment, lookups);
                     const clampedStart = Math.min(
                       DAY_END_MINUTES - DEFAULT_APPOINTMENT_DURATION_MINUTES,
                       Math.max(DAY_START_MINUTES, startMinutes)
@@ -201,17 +203,22 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
                           className={`w-full h-full relative rounded-xl ring-1 ring-inset px-2 md:px-3 py-2 flex flex-col justify-between cursor-pointer ${style.wrap}`}
                         >
                           <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-[60%] w-1 rounded-r-md ${style.accent}`} />
+                          {appointment.is_asap && (
+                            <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-white/70 text-[8px] font-bold uppercase tracking-widest text-error">
+                              ASAP
+                            </span>
+                          )}
 
-                          <div className="flex flex-col gap-0.5 min-h-0 pl-1">
+                          <div className="flex flex-col gap-0.5 min-h-0 pl-1 pr-8">
                             <p className={`text-[10px] md:text-[12px] font-bold leading-tight truncate ${style.name}`}>
-                              {appointment.patient}
+                              {display.patientName}
                             </p>
                             <p className={`hidden md:block text-[10px] font-medium leading-tight truncate ${style.meta}`}>
-                              {appointment.type}
+                              {appointment.user_notes || display.departmentName}
                             </p>
                           </div>
                           <p className={`hidden md:block text-[9px] font-semibold leading-none truncate ${style.meta} mt-auto pt-1 pl-1`}>
-                            {appointment.doctor} • {appointment.time}
+                            {display.doctorName} • {display.timeLabel}
                           </p>
                         </article>
                       </div>
@@ -229,7 +236,10 @@ export const WeeklyCalendar = ({ appointments, loading }) => {
 
 export const AppointmentsScreen = () => {
   const [appointments, setAppointments] = useState([]);
+  const [context, setContext] = useState({ users: [], doctors: [], departments: [] });
   const [loading, setLoading] = useState(true);
+
+  const lookups = useMemo(() => buildLookups(context), [context]);
 
   const weekRangeLabel = useMemo(() => {
     const start = getWeekStart(new Date());
@@ -240,26 +250,32 @@ export const AppointmentsScreen = () => {
 
   useEffect(() => {
     let mounted = true;
-    api.appointments.getAll()
-      .then((data) => {
+
+    Promise.all([
+      api.appointments.getAll(),
+      api.appointments.getContext(),
+    ])
+      .then(([appointmentData, contextData]) => {
         if (!mounted) return;
-        setAppointments(data);
+        setAppointments(appointmentData);
+        setContext(contextData);
       })
       .finally(() => {
         if (mounted) setLoading(false);
       });
+
     return () => {
       mounted = false;
     };
   }, []);
 
   return (
-    <div className="pt-8 pb-12 w-full anim-fade">
-      <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
+    <div className="pt-8 pb-12 w-full anim-fade space-y-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-display font-bold text-on-surface tracking-tight">Schedule</h1>
+          <h1 className="text-3xl font-display font-bold text-on-surface tracking-tight">Appointments</h1>
           <p className="text-on-surface-variant mt-2 font-medium text-sm">
-            {weekRangeLabel} <span className="mx-2 opacity-50">•</span> {appointments.length} appointments
+            {weekRangeLabel} <span className="mx-2 opacity-50">•</span> {appointments.length} Appointments
           </p>
         </div>
         <Link
@@ -270,7 +286,8 @@ export const AppointmentsScreen = () => {
         </Link>
       </div>
 
-      <WeeklyCalendar appointments={appointments} loading={loading} />
+      <WeeklyCalendar appointments={appointments} loading={loading} lookups={lookups} />
+
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo, useState } from 'react';
 import { gsap } from 'gsap';
 import {
   Star, ChevronRight, Stethoscope, ChevronLeft,
@@ -8,6 +8,7 @@ import {
 import { Link, useParams } from 'react-router-dom';
 import api from '../services/api';
 import { WeeklyCalendar } from './AppointmentsScreen';
+import { buildIdMap } from '../services/appointmentUtils';
 
 // --- Slot rendering helper ---
 const SlotCell = ({ slot }) => {
@@ -39,9 +40,16 @@ export const DepartmentDetailScreen = () => {
   const [dept, setDept] = useState(null);
   const [loading, setLoading] = useState(true);
   const [appointments, setAppointments] = useState([]);
+  const [appointmentContext, setAppointmentContext] = useState({ users: [], doctors: [], departments: [] });
   const [appointmentsLoading, setAppointmentsLoading] = useState(true);
   const [showReviews, setShowReviews] = useState(false);
   const comp = useRef(null);
+
+  const appointmentLookups = useMemo(() => ({
+    usersById: buildIdMap(appointmentContext.users),
+    doctorsById: buildIdMap(appointmentContext.doctors),
+    departmentsById: buildIdMap(appointmentContext.departments),
+  }), [appointmentContext]);
 
   useEffect(() => {
     setLoading(true);
@@ -49,15 +57,15 @@ export const DepartmentDetailScreen = () => {
     
     Promise.all([
       api.departments.getById(id),
-      api.appointments.getAll()
-    ]).then(([deptData, allAppointments]) => {
+      api.appointments.getAll(),
+      api.appointments.getContext(),
+    ]).then(([deptData, allAppointments, contextData]) => {
       setDept(deptData);
       setLoading(false);
-      
-      const filtered = allAppointments.filter(app => 
-        app.type.toLowerCase() === id.toLowerCase() || 
-        app.type.toLowerCase().includes(id.toLowerCase())
-      );
+
+      setAppointmentContext(contextData);
+      const departmentRecord = contextData.departments.find((department) => department.slug === id);
+      const filtered = allAppointments.filter((app) => Number(app.dep_id) === Number(departmentRecord?.id));
       setAppointments(filtered);
       setAppointmentsLoading(false);
     });
@@ -227,7 +235,7 @@ export const DepartmentDetailScreen = () => {
 
         {/* Calendar */}
         <div className="col-span-12 lg:col-span-8 flex flex-col h-full anim-card">
-          <WeeklyCalendar appointments={appointments} loading={appointmentsLoading} />
+          <WeeklyCalendar appointments={appointments} loading={appointmentsLoading} lookups={appointmentLookups} />
         </div>
       </div>
 
