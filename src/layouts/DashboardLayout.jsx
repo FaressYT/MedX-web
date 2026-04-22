@@ -31,6 +31,7 @@ export const DashboardLayout = ({ children }) => {
     { icon: Building2, label: 'Departments', path: '/dashboard/departments' },
     { icon: Calendar, label: 'Appointments', path: '/dashboard/appointments' },
     { icon: DollarSign, label: 'Financials', path: '/dashboard/financials' },
+    { icon: Settings, label: 'Settings', path: '/dashboard/settings' },
   ];
 
   return (
@@ -66,10 +67,7 @@ export const DashboardLayout = ({ children }) => {
             <Plus className="w-4 h-4" /> New Appointment
           </Link>
 
-          <Link to="/dashboard/settings" className="flex items-center gap-3 px-4 py-3 text-slate-600 hover:text-cyan-700 hover:bg-slate-200/50 transition-colors duration-200 rounded-lg">
-            <Settings className="w-5 h-5 text-outline" />
-            <span className="text-sm font-medium">Settings</span>
-          </Link>
+
 
           <div className="flex items-center gap-3 px-4 py-4 mt-2 hover:bg-slate-200/50 rounded-xl cursor-pointer transition-colors" onClick={logout}>
             <div className="w-8 h-8 rounded-full primary-gradient flex items-center justify-center text-white font-bold shrink-0">
@@ -87,7 +85,7 @@ export const DashboardLayout = ({ children }) => {
       <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 bg-surface">
 
         {/* Top Navbar */}
-        <header className="h-20 shrink-0 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-8 border-b border-transparent">
+        <header className="h-20 shrink-0 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-8 border-b border-transparent">
           <div className="flex items-center gap-6">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -114,21 +112,40 @@ export const DashboardLayout = ({ children }) => {
           </div>
 
           <div className="flex items-center gap-4">
-            <button className="p-2 text-slate-500 hover:bg-slate-200/50 rounded-full transition-colors">
-              <HelpCircle className="w-5 h-5" />
-            </button>
-            <button className="ml-2 px-5 py-2.5 bg-primary-container text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity">
+            <Link 
+              to="/dashboard/appointments/new"
+              className="ml-2 px-5 py-2.5 bg-primary-container text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity"
+            >
               Check In Patient
-            </button>
+            </Link>
           </div>
         </header>
 
         {/* Scrollable Page Content */}
-        <div className="flex-1 overflow-y-auto px-8 relative">
+        <div className="flex-1 overflow-y-auto px-4 md:px-8 relative">
           <div className="max-w-7xl mx-auto w-full relative">
             {children}
           </div>
         </div>
+
+        {/* Mobile Navigation Bar */}
+        <nav className="md:hidden shrink-0 bg-surface border-t border-slate-200/50 flex items-center justify-around z-50">
+          {navItems.map((item) => {
+            const active = location.pathname === item.path || (location.pathname.startsWith(item.path) && item.path !== '/dashboard');
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`flex flex-col items-center justify-center flex-1 py-3 gap-1 ${active ? 'text-primary' : 'text-slate-500'}`}
+              >
+                <div className={`p-1.5 rounded-xl transition-colors ${active ? 'bg-primary/10' : 'transparent'}`}>
+                  <item.icon className={`w-5 h-5 ${active ? 'text-primary' : 'text-slate-400'}`} />
+                </div>
+                <span className={`text-[10px] font-medium tracking-wide ${active ? 'text-primary' : 'text-slate-500'}`}>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
       </main>
     </div>
   )

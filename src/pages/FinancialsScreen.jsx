@@ -60,7 +60,7 @@ export const FinancialsScreen = () => {
       <div className="space-y-8">
 
         {/* Dashboard Header Section */}
-        <section className="flex flex-col md:flex-row justify-between items-end gap-4 anim-fade">
+        <section className="flex flex-col md:flex-row justify-between items-start gap-4 anim-fade">
           <div>
             <h2 className="text-3xl font-extrabold text-on-surface tracking-tight font-display">Financial Performance</h2>
             <p className="text-on-surface-variant font-medium mt-1">Year-to-date Real-time Analytics</p>

@@ -45,6 +45,7 @@ const buildLookups = (context) => ({
 
 export const WeeklyCalendar = ({ appointments, loading, lookups }) => {
   const comp = useRef(null);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState(null);
 
   const todayIso = toIsoDate(new Date());
   const totalCalendarHeight = ((DAY_END_MINUTES - DAY_START_MINUTES) / 60) * HOUR_ROW_HEIGHT;
@@ -95,6 +96,12 @@ export const WeeklyCalendar = ({ appointments, loading, lookups }) => {
     return undefined;
   }, [loading, appointments]);
 
+  useEffect(() => {
+    const handleGlobalClick = () => setSelectedAppointmentId(null);
+    document.addEventListener('click', handleGlobalClick);
+    return () => document.removeEventListener('click', handleGlobalClick);
+  }, []);
+
   if (loading) {
     return (
       <div className="w-full flex items-center justify-center min-h-[400px]">
@@ -111,9 +118,9 @@ export const WeeklyCalendar = ({ appointments, loading, lookups }) => {
   const fallbackStyle = { wrap: 'bg-slate-50 hover:bg-slate-100/80 ring-slate-500/30 text-slate-900 shadow-sm hover:shadow-md hover:scale-[1.02] hover:z-20 transition-all duration-300', accent: 'bg-slate-400', name: 'text-slate-900', meta: 'text-slate-700/80' };
 
   return (
-    <div ref={comp} className="bg-surface border border-slate-100/80 shadow-sm rounded-3xl overflow-hidden ring-1 ring-slate-900/5">
-      <div className="w-full">
-        <div className="w-full">
+    <div ref={comp} className="bg-surface border border-slate-100/80 shadow-sm rounded-3xl ring-1 ring-slate-900/5">
+      <div className="w-full overflow-x-auto pb-1">
+        <div className="min-w-[800px] w-full">
           <div className="grid grid-cols-[60px_repeat(7,minmax(0,1fr))] md:grid-cols-[70px_repeat(7,minmax(0,1fr))] border-b border-slate-100/80 bg-surface/80 backdrop-blur-xl sticky top-0 z-30">
             <div className="flex items-end justify-center pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-r border-slate-100/50">Time</div>
             {weekDays.map((day) => {
@@ -196,10 +203,14 @@ export const WeeklyCalendar = ({ appointments, loading, lookups }) => {
                     return (
                       <div
                         key={appointment.id}
-                        className="calendar-event absolute inset-x-1.5 z-10 hover:z-20"
+                        className={`calendar-event absolute inset-x-1.5 ${selectedAppointmentId === appointment.id ? 'z-[9999]' : 'z-10 hover:z-20'}`}
                         style={{ top, height }}
                       >
                         <article
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedAppointmentId(selectedAppointmentId === appointment.id ? null : appointment.id);
+                          }}
                           className={`w-full h-full relative rounded-xl ring-1 ring-inset px-2 md:px-3 py-2 flex flex-col justify-between cursor-pointer ${style.wrap}`}
                         >
                           <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-[60%] w-1 rounded-r-md ${style.accent}`} />
@@ -209,18 +220,43 @@ export const WeeklyCalendar = ({ appointments, loading, lookups }) => {
                             </span>
                           )}
 
-                          <div className="flex flex-col gap-0.5 min-h-0 pl-1 pr-8">
-                            <p className={`text-[10px] md:text-[12px] font-bold leading-tight truncate ${style.name}`}>
+                          <div className="flex flex-col gap-0.5 min-h-0 pl-1 pr-6 md:pr-8">
+                            <p className={`text-[10px] md:text-[12px] font-bold leading-tight ${style.name}`}>
                               {display.patientName}
                             </p>
-                            <p className={`hidden md:block text-[10px] font-medium leading-tight truncate ${style.meta}`}>
+                            <p className={`text-[9px] md:text-[10px] font-medium leading-tight truncate ${style.meta}`}>
                               {appointment.user_notes || display.departmentName}
                             </p>
                           </div>
-                          <p className={`hidden md:block text-[9px] font-semibold leading-none truncate ${style.meta} mt-auto pt-1 pl-1`}>
+                          <p className={`text-[8px] md:text-[9px] font-semibold leading-none truncate ${style.meta} mt-auto pt-1 pl-1`}>
                             {display.doctorName} • {display.timeLabel}
                           </p>
                         </article>
+
+                        {selectedAppointmentId === appointment.id && (
+                          <div 
+                            className="absolute top-[calc(100%+8px)] left-1/2 -translate-x-1/2 w-48 md:w-64 bg-surface shadow-[0_20px_50px_-12px_rgba(0,0,0,0.25)] rounded-2xl p-4 z-[99999] border border-slate-200 ring-1 ring-slate-900/10 cursor-auto"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <h4 className="font-bold text-slate-900 text-sm md:text-base mb-1 truncate">{display.patientName}</h4>
+                            <div className="space-y-1.5 mt-2">
+                              <p className="text-xs md:text-sm text-slate-700 font-medium truncate">
+                                <span className="text-slate-400">Doctor:</span> {display.doctorName}
+                              </p>
+                              <p className="text-xs md:text-sm text-slate-700 font-medium truncate">
+                                <span className="text-slate-400">Dept:</span> {display.departmentName}
+                              </p>
+                              <p className="text-xs md:text-sm text-slate-700 font-medium truncate">
+                                <span className="text-slate-400">Time:</span> {display.timeLabel}
+                              </p>
+                              {appointment.user_notes && (
+                                <p className="text-xs text-slate-500 italic mt-2 border-t border-slate-100 pt-2 break-words whitespace-pre-wrap">
+                                  {appointment.user_notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

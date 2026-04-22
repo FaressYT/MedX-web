@@ -372,7 +372,6 @@ export const SettingsScreen = () => {
           {securityLoading ? 'Submitting...' : 'Submit Request'}
         </button>
       </div>
-      {renderLogoutButton()}
     </form>
   );
 
@@ -421,7 +420,6 @@ export const SettingsScreen = () => {
           <Save className="w-4 h-4" /> Save Preferences
         </button>
       </div>
-      {renderLogoutButton()}
     </div>
   );
 
@@ -456,8 +454,8 @@ export const SettingsScreen = () => {
               type="button"
               onClick={() => setActiveSection(id)}
               className={`w-full flex items-center gap-3 px-4 py-3 border-l-4 font-medium rounded-r-xl transition-colors ${activeSection === id
-                  ? 'bg-gradient-to-r from-primary/10 to-transparent border-l-primary text-primary font-bold'
-                  : 'text-slate-500 hover:bg-surface-container-lowest hover:text-slate-900 border-l-transparent'
+                ? 'bg-gradient-to-r from-primary/10 to-transparent border-l-primary text-primary font-bold'
+                : 'text-slate-500 hover:bg-surface-container-lowest hover:text-slate-900 border-l-transparent'
                 }`}
             >
               <Icon className="w-5 h-5" /> {label}
@@ -469,6 +467,9 @@ export const SettingsScreen = () => {
         <div className="col-span-12 md:col-span-9 space-y-8">
           {sectionContent[activeSection]}
         </div>
+      </div>
+      <div className="mt-8 pt-8 border-t border-slate-100">
+        {renderLogoutButton()}
       </div>
     </div>
   );
