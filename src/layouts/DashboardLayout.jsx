@@ -35,7 +35,7 @@ export const DashboardLayout = ({ children }) => {
   ];
 
   return (
-    <div className="flex h-screen bg-surface font-sans">
+    <div className="flex h-[100dvh] bg-surface font-sans">
 
       {/* Navigation Rail / Sidebar */}
       <aside className="w-64 bg-slate-100 flex-col p-4 z-50 border-r border-slate-200/50 hidden md:flex shrink-0 overflow-y-auto">
@@ -82,7 +82,7 @@ export const DashboardLayout = ({ children }) => {
       </aside>
 
       {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-screen overflow-hidden relative z-10 bg-surface">
+      <main className="flex-1 flex flex-col h-[100dvh] overflow-hidden relative z-10 bg-surface">
 
         {/* Top Navbar */}
         <header className="h-20 shrink-0 bg-surface/80 backdrop-blur-xl flex items-center justify-between px-4 md:px-8 border-b border-transparent">
